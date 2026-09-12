@@ -1,3 +1,85 @@
+export interface MembershipRequestResponse {
+    id: number
+    email: string
+    firstName?: string
+    lastName?: string
+    motivationLetter?: string
+    cvOriginalFilename?: string
+    requestedStatus: string
+    establishment?: string
+    originLaboratory?: string
+    status: 'PENDING' | 'ACCEPTED' | 'REJECTED'
+    submittedAt: string
+    decidedAt?: string
+    decidedBy?: string
+    rejectionReason?: string
+}
+
+export interface RoleHistoryEntry {
+    id: number
+    role: string
+    startDate: string
+    endDate?: string
+    active: boolean
+    changedBy?: string
+}
+
+export interface MemberStatusHistoryEntry {
+    id: number
+    status: string
+    startDate: string
+    endDate?: string
+    active: boolean
+    changedBy?: string
+    reason?: string
+}
+
+export interface LabInfo {
+    name: string
+    presentation: string
+    creationDate: string
+    faculty: string
+}
+
+export interface PublicMember {
+    id: number
+    firstName: string
+    lastName: string
+    photoPath?: string
+    biography?: string
+    interests?: string
+    establishment?: string
+    status: string
+    team?: string
+}
+
+export interface PublicEvent {
+    id: number
+    title: string
+    description?: string
+    location?: string
+    edition?: string
+    website?: string
+    startDate: string
+    endDate?: string
+    type: string
+    status: string
+}
+
+export interface PublicPublication {
+    id: number
+    title: string
+    journal?: string
+    conference?: string
+    doi?: string
+    url?: string
+    authors?: string
+    team?: string
+    year: number
+    type: string
+    memberFirstName?: string
+    memberLastName?: string
+}
 export interface CalendarEvent {
     id: number
     title: string
@@ -111,6 +193,7 @@ export interface AuthResponse {
 
 export interface MemberProfile {
     id: number
+    userId: number
     email: string
     firstName?: string
     lastName?: string

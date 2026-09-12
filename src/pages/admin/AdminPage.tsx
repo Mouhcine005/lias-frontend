@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Shield, UserCheck, UserX, Snowflake } from 'lucide-react'
+import { Shield, UserCheck, UserX, Snowflake, FileText, Download } from 'lucide-react'
 import { membersApi } from '../../api/members'
-import type { AdminMember, MemberStatus, UserRole, UserStatus } from '../../types'
+import { membershipRequestApi } from '../../api/auth'
+import type { AdminMember, MemberStatus, UserRole, UserStatus, MembershipRequestResponse } from '../../types'
 import { STATUS_LABELS, ROLE_LABELS } from '../../types'
 import Spinner from '../../components/ui/Spinner'
 import Button from '../../components/ui/Button'
@@ -13,6 +14,7 @@ import Tabs from '../../components/ui/Tabs'
 import { Card } from '../../components/ui/Card'
 import Avatar from '../../components/ui/Avatar'
 import { notify, apiErrorMessage } from '../../lib/toast'
+import { formatDate } from '../../lib/utils'
 
 const STATUS_COLORS: Record<string, 'green' | 'yellow' | 'orange' | 'red'> = {
     ACTIVE: 'green', PENDING: 'yellow', FROZEN: 'orange', DISABLED: 'red',
@@ -21,7 +23,7 @@ const MEMBER_STATUSES: MemberStatus[] = ['PERMANENT', 'ASSOCIATE', 'DOCTORAL', '
 
 export default function AdminPage() {
     const qc = useQueryClient()
-    const [tab, setTab] = useState<'pending' | 'all'>('pending')
+    const [tab, setTab] = useState<'requests' | 'pending' | 'all'>('requests')
 
     const { data: allMembers = [], isLoading } = useQuery({
         queryKey: ['admin-members'],
@@ -33,10 +35,28 @@ export default function AdminPage() {
         queryFn: async () => (await membersApi.adminPending()).data,
     })
 
+    const { data: requests = [] } = useQuery({
+        queryKey: ['membership-requests'],
+        queryFn: async () => (await membershipRequestApi.getPending()).data,
+    })
+
     const invalidate = () => {
         qc.invalidateQueries({ queryKey: ['admin-members'] })
         qc.invalidateQueries({ queryKey: ['admin-pending'] })
     }
+
+    const invalidateRequests = () => qc.invalidateQueries({ queryKey: ['membership-requests'] })
+
+    const acceptRequest = useMutation({
+        mutationFn: (id: number) => membershipRequestApi.accept(id),
+        onSuccess: () => { invalidateRequests(); invalidate(); notify.success('Demande acceptée — compte créé') },
+        onError: (e) => notify.error(apiErrorMessage(e)),
+    })
+    const rejectRequest = useMutation({
+        mutationFn: ({ id, reason }: { id: number; reason?: string }) => membershipRequestApi.reject(id, reason),
+        onSuccess: () => { invalidateRequests(); notify.success('Demande rejetée') },
+        onError: (e) => notify.error(apiErrorMessage(e)),
+    })
 
     const approve = useMutation({ mutationFn: (id: number) => membersApi.approve(id), onSuccess: () => { invalidate(); notify.success('Membre approuvé') }, onError: (e) => notify.error(apiErrorMessage(e)) })
     const reject = useMutation({ mutationFn: (id: number) => membersApi.reject(id), onSuccess: () => { invalidate(); notify.success('Demande rejetée') }, onError: (e) => notify.error(apiErrorMessage(e)) })
@@ -60,16 +80,60 @@ export default function AdminPage() {
     return (
         <div>
             <PageHeader title="Administration" subtitle="Gestion des comptes membres"
-                badge={<span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-100 text-purple-700 text-xs font-bold mb-2"><Shield className="w-3 h-3" /> ADMIN</span>} />
+                        badge={<span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-100 text-purple-700 text-xs font-bold mb-2"><Shield className="w-3 h-3" /> ADMIN</span>} />
 
             <div className="mb-6">
                 <Tabs tabs={[
+                    { id: 'requests' as const, label: "Demandes d'adhésion", count: requests.length },
                     { id: 'pending' as const, label: 'En attente', count: pending.length },
                     { id: 'all' as const, label: 'Tous les membres', count: allMembers.length },
                 ]} active={tab} onChange={setTab} />
             </div>
 
-            {displayed.length === 0 ? <EmptyState title={tab === 'pending' ? 'Aucune demande' : 'Aucun membre'} /> : (
+            {tab === 'requests' ? (
+                requests.length === 0 ? <EmptyState title="Aucune demande d'adhésion" icon={FileText} /> : (
+                    <div className="space-y-4">
+                        {requests.map((r: MembershipRequestResponse) => (
+                            <Card key={r.id}>
+                                <div className="flex flex-col lg:flex-row gap-6">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-slate-900 text-lg">
+                                            {r.firstName} {r.lastName}
+                                        </p>
+                                        <p className="text-sm text-slate-500">{r.email}</p>
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            <Badge label={r.requestedStatus} color="violet" />
+                                            {r.establishment && <Badge label={r.establishment} color="slate" />}
+                                        </div>
+                                        {r.motivationLetter && (
+                                            <p className="text-sm text-slate-600 mt-3 leading-relaxed">{r.motivationLetter}</p>
+                                        )}
+                                        <div className="flex items-center gap-4 mt-3 text-xs text-slate-400">
+                                            <span>Soumise le {formatDate(r.submittedAt)}</span>
+                                            {r.cvOriginalFilename && (
+                                                <span className="inline-flex items-center gap-1">
+                                                    <Download className="w-3 h-3" /> {r.cvOriginalFilename}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex lg:flex-col gap-2 lg:w-48 shrink-0">
+                                        <Button size="sm" className="flex-1" onClick={() => acceptRequest.mutate(r.id)}>
+                                            <UserCheck className="w-3.5 h-3.5" /> Accepter
+                                        </Button>
+                                        <Button size="sm" variant="danger" className="flex-1" onClick={() => {
+                                            const reason = window.prompt('Motif du rejet (optionnel) :') ?? undefined
+                                            rejectRequest.mutate({ id: r.id, reason })
+                                        }}>
+                                            <UserX className="w-3.5 h-3.5" /> Rejeter
+                                        </Button>
+                                    </div>
+                                </div>
+                            </Card>
+                        ))}
+                    </div>
+                )
+            ) : displayed.length === 0 ? <EmptyState title={tab === 'pending' ? 'Aucune demande' : 'Aucun membre'} /> : (
                 <div className="space-y-4">
                     {displayed.map((m: AdminMember) => (
                         <Card key={m.userId}>

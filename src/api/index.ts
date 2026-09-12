@@ -1,4 +1,5 @@
 import { authApi } from './auth'
+import { publicApi } from './public'
 import { membersApi } from './members'
 import { publicationsApi } from './publications'
 import { eventsApi } from './events'
@@ -17,6 +18,7 @@ import { API_BASE } from './axios'
 
 export {
     authApi,
+    publicApi,
     membersApi,
     publicationsApi,
     eventsApi,

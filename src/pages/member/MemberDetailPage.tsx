@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Mail, Building2, BookOpen, ArrowLeft } from 'lucide-react'
+import { Mail, Building2, BookOpen, ArrowLeft, History } from 'lucide-react'
 import { membersApi } from '../../api/members'
 import { publicationsApi } from '../../api'
 import Spinner from '../../components/ui/Spinner'
@@ -10,10 +10,13 @@ import { Card } from '../../components/ui/Card'
 import Avatar from '../../components/ui/Avatar'
 import { formatDate } from '../../lib/utils'
 import { ROLE_LABELS } from '../../types'
+import { useAuth } from '../../context/AuthContext'
 
 export default function MemberDetailPage() {
     const { id } = useParams()
     const memberId = Number(id)
+    const { isAdmin, isDirector } = useAuth()
+    const canViewHistory = isAdmin() || isDirector()
 
     const { data: member, isLoading } = useQuery({
         queryKey: ['member', id],
@@ -31,6 +34,18 @@ export default function MemberDetailPage() {
         queryKey: ['publications-member', id],
         queryFn: async () => (await publicationsApi.byMember(memberId)).data,
         enabled: !!id,
+    })
+
+    const { data: roleHistory = [] } = useQuery({
+        queryKey: ['role-history', member?.userId],
+        queryFn: async () => (await membersApi.roleHistory(member!.userId)).data,
+        enabled: canViewHistory && !!member?.userId,
+    })
+
+    const { data: statusHistory = [] } = useQuery({
+        queryKey: ['status-history', memberId],
+        queryFn: async () => (await membersApi.statusHistory(memberId)).data,
+        enabled: canViewHistory && !!memberId,
     })
 
     if (isLoading) return <Spinner className="h-64" />
@@ -88,6 +103,43 @@ export default function MemberDetailPage() {
                     )}
                 </Card>
             </div>
+
+            {canViewHistory && (
+                <div className="grid lg:grid-cols-2 gap-6 mt-6">
+                    <Card>
+                        <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                            <History className="w-4 h-4" /> Historique des rôles
+                        </h3>
+                        {roleHistory.length === 0 ? <p className="text-sm text-slate-400">Aucun historique</p> : roleHistory.map(h => (
+                            <div key={h.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <Badge label={ROLE_LABELS[h.role as keyof typeof ROLE_LABELS] ?? h.role} color={h.active ? 'cyan' : 'slate'} />
+                                    {h.active && <span className="text-[10px] font-bold text-emerald-600 uppercase">Actuel</span>}
+                                </div>
+                                <span className="text-slate-400 text-xs">
+                                    {formatDate(h.startDate)} {h.endDate ? `→ ${formatDate(h.endDate)}` : '→ présent'}
+                                </span>
+                            </div>
+                        ))}
+                    </Card>
+                    <Card>
+                        <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                            <History className="w-4 h-4" /> Historique du statut
+                        </h3>
+                        {statusHistory.length === 0 ? <p className="text-sm text-slate-400">Aucun historique</p> : statusHistory.map(h => (
+                            <div key={h.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <Badge label={h.status} color={h.active ? 'violet' : 'slate'} />
+                                    {h.active && <span className="text-[10px] font-bold text-emerald-600 uppercase">Actuel</span>}
+                                </div>
+                                <span className="text-slate-400 text-xs">
+                                    {formatDate(h.startDate)} {h.endDate ? `→ ${formatDate(h.endDate)}` : '→ présent'}
+                                </span>
+                            </div>
+                        ))}
+                    </Card>
+                </div>
+            )}
         </div>
     )
 }

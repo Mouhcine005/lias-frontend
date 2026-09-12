@@ -1,5 +1,5 @@
 import api from './axios'
-import type { AdminMember, MemberProfile, Affiliation } from '../types'
+import type { AdminMember, MemberProfile, Affiliation, RoleHistoryEntry, MemberStatusHistoryEntry } from '../types'
 
 export const membersApi = {
     me: () => api.get<MemberProfile>('/api/members/me'),
@@ -23,6 +23,10 @@ export const membersApi = {
         api.patch<AdminMember>(`/api/admin/members/${userId}/role`, null, { params: { role } }),
     changeStatus: (memberId: number, status: string) =>
         api.patch<AdminMember>(`/api/admin/members/${memberId}/status`, null, { params: { status } }),
+    roleHistory: (userId: number) =>
+        api.get<RoleHistoryEntry[]>(`/api/admin/members/${userId}/role-history`),
+    statusHistory: (memberId: number) =>
+        api.get<MemberStatusHistoryEntry[]>(`/api/admin/members/${memberId}/status-history`),
     affiliationsMe: () => api.get<Affiliation[]>('/api/affiliations/me'),
     affiliationsForMember: (memberId: number) =>
         api.get<Affiliation[]>(`/api/affiliations/member/${memberId}`),
